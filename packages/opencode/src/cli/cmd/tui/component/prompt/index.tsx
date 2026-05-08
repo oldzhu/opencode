@@ -94,6 +94,8 @@ const money = new Intl.NumberFormat("en-US", {
   currency: "USD",
 })
 
+const DRAFT_RETENTION_MIN_CHARS = 20
+
 function randomIndex(count: number) {
   if (count <= 0) return 0
   return Math.floor(Math.random() * count)
@@ -412,13 +414,7 @@ export function Prompt(props: PromptProps) {
         category: "Prompt",
         hidden: true,
         run: () => {
-          input.clear()
-          input.extmarks.clear()
-          setStore("prompt", {
-            input: "",
-            parts: [],
-          })
-          setStore("extmarkToPartIndex", new Map())
+          clearPrompt()
           dialog.clear()
         },
       },
@@ -614,6 +610,7 @@ export function Prompt(props: PromptProps) {
             dialog,
             sdk,
             sync,
+            project,
             toast,
             onSelect: (selection) => {
               void warpSession(selection)
@@ -896,6 +893,8 @@ export function Prompt(props: PromptProps) {
       bindings: [
         {
           key: "!",
+          desc: "Shell mode",
+          group: "Prompt",
           cmd: () => {
             setStore("placeholder", randomIndex(shell().length))
             setStore("mode", "shell")
@@ -909,7 +908,7 @@ export function Prompt(props: PromptProps) {
     return {
       target: inputTarget,
       enabled: inputTarget() !== undefined && store.mode === "shell",
-      bindings: [{ key: "escape", cmd: () => setStore("mode", "normal") }],
+      bindings: [{ key: "escape", desc: "Exit shell mode", group: "Prompt", cmd: () => setStore("mode", "normal") }],
     }
   })
 
@@ -920,7 +919,7 @@ export function Prompt(props: PromptProps) {
         cursorVersion()
         return inputTarget() !== undefined && store.mode === "shell" && input?.visualCursor.offset === 0
       })(),
-      bindings: [{ key: "backspace", cmd: () => setStore("mode", "normal") }],
+      bindings: [{ key: "backspace", desc: "Exit shell mode", group: "Prompt", cmd: () => setStore("mode", "normal") }],
     }
   })
 
@@ -940,6 +939,8 @@ export function Prompt(props: PromptProps) {
       commands: [
         {
           name: "prompt.history.previous",
+          title: "Previous prompt history",
+          category: "Prompt",
           run() {
             if (input.cursorOffset !== 0) {
               input.cursorOffset = 0
@@ -976,6 +977,8 @@ export function Prompt(props: PromptProps) {
       commands: [
         {
           name: "prompt.history.next",
+          title: "Next prompt history",
+          category: "Prompt",
           run() {
             if (input.cursorOffset !== input.plainText.length) {
               input.cursorOffset = input.plainText.length
@@ -1034,6 +1037,7 @@ export function Prompt(props: PromptProps) {
               dialog,
               sdk,
               sync,
+              project,
               toast,
               onSelect: (selection) => {
                 void warpSession(selection)
@@ -1354,6 +1358,22 @@ export function Prompt(props: PromptProps) {
       }),
     )
     return
+  }
+
+  function clearPrompt() {
+    if (store.prompt.input.trim().length >= DRAFT_RETENTION_MIN_CHARS || store.prompt.parts.length > 0) {
+      history.append({
+        ...store.prompt,
+        mode: store.mode,
+      })
+    }
+    input.clear()
+    input.extmarks.clear()
+    setStore("prompt", {
+      input: "",
+      parts: [],
+    })
+    setStore("extmarkToPartIndex", new Map())
   }
 
   const highlight = createMemo(() => {
