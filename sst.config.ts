@@ -2,26 +2,21 @@
 
 export default $config({
   app(input) {
-    const deployAws = input.stage === "production" || input.stage === "dev" || input.stage === "adam"
     return {
       name: "opencode",
       removal: input?.stage === "production" ? "retain" : "remove",
       protect: ["production"].includes(input?.stage),
       home: "cloudflare",
       providers: {
-        ...(deployAws
-          ? {
-              aws: {
-                version: "7.30.0",
-                region: "us-east-1",
-                profile: process.env.GITHUB_ACTIONS
-                  ? undefined
-                  : input.stage === "production"
-                    ? "opencode-production"
-                    : "opencode-dev",
-              },
-            }
-          : {}),
+        aws: {
+          version: "7.30.0",
+          region: "us-east-1",
+          profile: process.env.GITHUB_ACTIONS
+            ? undefined
+            : input.stage === "production"
+              ? "opencode-production"
+              : "opencode-dev",
+        },
         stripe: {
           version: "0.0.28",
           apiKey: process.env.STRIPE_SECRET_KEY!,
@@ -48,7 +43,7 @@ export default $config({
     return {
       StatWorkerUrl: stat.url,
       // StatsUrl: stats.app.url,
-      ...(stage.githubActionsDeployRoleArn ? { GithubActionsDeployRoleArn: stage.githubActionsDeployRoleArn } : {}),
+      AwsStage: stage.awsStage,
     }
   },
 })
