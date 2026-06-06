@@ -14,7 +14,7 @@ import { AbsolutePath } from "@opencode-ai/core/schema"
 import { SessionV2 } from "@opencode-ai/core/session"
 import { BashTool } from "@opencode-ai/core/tool/bash"
 import { ToolOutputStore } from "@opencode-ai/core/tool-output-store"
-import { ToolRegistry } from "@opencode-ai/core/tool-registry"
+import { ToolRegistry } from "@opencode-ai/core/tool/registry"
 import { location } from "./fixture/location"
 import { tmpdir } from "./fixture/tmpdir"
 import { testEffect } from "./lib/effect"
@@ -74,7 +74,7 @@ const resources = Layer.succeed(
     limits: () => Effect.die("unused"),
     write: () => Effect.die("unused"),
     truncate: (input) => Effect.sync(() => truncations.push(input)).pipe(Effect.andThen(truncate(input))),
-    read: () => Effect.die("unused"),
+    bound: (input) => Effect.succeed({ output: input.output, outputPaths: [] }),
     cleanup: () => Effect.die("unused"),
   }),
 )
@@ -113,7 +113,7 @@ const withTool = <A, E, R>(
     Location.Service.of(location({ directory: AbsolutePath.make(directory) })),
   )
   const mutation = LocationMutation.layer.pipe(Layer.provide(filesystem), Layer.provide(activeLocation))
-  const registry = ToolRegistry.layer.pipe(Layer.provide(permission))
+  const registry = ToolRegistry.defaultLayer.pipe(Layer.provide(permission))
   const bash = BashTool.layer.pipe(
     Layer.provide(registry),
     Layer.provide(permission),
@@ -295,7 +295,7 @@ describe("BashTool", () => {
     ),
   )
 
-  it.live("keeps non-zero exits useful and exposes managed overflow by opaque URI", () =>
+  it.live("keeps non-zero exits useful and exposes managed overflow by path", () =>
     Effect.acquireUseRelease(
       Effect.promise(() => tmpdir()),
       (tmp) => {
@@ -303,13 +303,9 @@ describe("BashTool", () => {
         result = { ...result, exitCode: 7, stdout: Buffer.from("HEAD full output TAIL") }
         truncate = (input) =>
           Effect.succeed({
-            content: "HEAD\n\n... output truncated; full content available as tool-output://opaque ...\n\nTAIL",
+            content: "HEAD\n\n... output truncated; full content saved to /tmp/tool-output/tool_opaque ...\n\nTAIL",
             truncated: true,
-            resource: new ToolOutputStore.Resource({
-              uri: "tool-output://opaque",
-              mime: "text/plain",
-              size: input.content.length,
-            }),
+            outputPath: "/tmp/tool-output/tool_opaque",
           })
         return withTool(tmp.path, (registry) => registry.settle(call({ command: "false" }, "call-overflow"))).pipe(
           Effect.andThen((settled) =>
@@ -323,12 +319,12 @@ describe("BashTool", () => {
                 cwd: realpathSync(tmp.path),
                 exitCode: 7,
                 truncated: true,
-                resource: { uri: "tool-output://opaque" },
+                outputPath: "/tmp/tool-output/tool_opaque",
               })
+              expect(settled.outputPaths).toEqual(["/tmp/tool-output/tool_opaque"])
               expect(truncations).toMatchObject([
                 { sessionID, toolCallID: "call-overflow", content: "HEAD full output TAIL" },
               ])
-              expect(JSON.stringify(settled)).not.toContain(tmp.path + path.sep + "tool-output")
             }),
           ),
         )

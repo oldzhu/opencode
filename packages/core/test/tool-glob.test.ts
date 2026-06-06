@@ -6,7 +6,7 @@ import { PermissionV2 } from "@opencode-ai/core/permission"
 import { RelativePath } from "@opencode-ai/core/schema"
 import { SessionV2 } from "@opencode-ai/core/session"
 import { GlobTool } from "@opencode-ai/core/tool/glob"
-import { ToolRegistry } from "@opencode-ai/core/tool-registry"
+import { ToolRegistry } from "@opencode-ai/core/tool/registry"
 import { testEffect } from "./lib/effect"
 
 const sessionID = SessionV2.ID.make("ses_glob_tool_test")
@@ -39,7 +39,9 @@ const filesystem = Layer.succeed(
     resolveReadPath: () => Effect.die("unused"),
     resolveRead: () => Effect.die("unused"),
     readResolved: () => Effect.die("unused"),
+    readSampleResolved: () => Effect.die("unused"),
     readTextPageResolved: () => Effect.die("unused"),
+    readToolResolved: () => Effect.die("unused"),
     list: () => Effect.die("unused"),
     resolveRoot: (input = {}) =>
       Effect.sync(() => {
@@ -81,7 +83,7 @@ const search = Layer.succeed(
   }),
 )
 
-const registry = ToolRegistry.layer.pipe(Layer.provide(permission))
+const registry = ToolRegistry.defaultLayer.pipe(Layer.provide(permission))
 const glob = GlobTool.layer.pipe(
   Layer.provide(registry),
   Layer.provide(permission),
