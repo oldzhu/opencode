@@ -249,7 +249,6 @@ export const dict = {
   "zen.privacy.exceptionsLink": "以下の例外",
 
   "go.title": "OpenCode Go | すべての人のための低価格なコーディングモデル",
-  "go.banner.text": "MiniMax M3の利用上限が期間限定で3倍に",
   "go.meta.description":
     "Goは最初の月$5、その後$10/月で、GLM-5.2、GLM-5.1、Kimi K2.7 Code、Kimi K2.6、MiMo-V2.5-Pro、MiMo-V2.5、Qwen3.7 Max、Qwen3.7 Plus、Qwen3.6 Plus、MiniMax M2.7、MiniMax M3、DeepSeek V4 Pro、DeepSeek V4 Flashに対して5時間のゆとりあるリクエスト上限があります。",
   "go.hero.title": "すべての人のための低価格なコーディングモデル",
@@ -374,6 +373,8 @@ export const dict = {
   "zen.api.error.userMonthlyLimitReached":
     "月額の利用上限 ${{amount}} に達しました。こちらから上限を管理してください: {{membersUrl}}",
   "zen.api.error.modelDisabled": "モデルが無効です",
+  "zen.api.error.regionNotAllowed":
+    "このモデルは中国でホストされています。このモデルを使用したい場合は、設定で有効にしてください: {{consoleGoUrl}}",
   "zen.api.error.trialEnded":
     "{{model}} の無料プロモーションは終了しました。OpenCode Go を購読するとモデルを引き続き使用できます - {{link}}",
 

@@ -21,6 +21,7 @@ import {
   MonthlyLimitError,
   UserLimitError,
   ModelError,
+  RegionError,
   RateLimitError,
   FreeUsageLimitError,
   GoUsageLimitError,
@@ -127,11 +128,24 @@ export async function handler(
       : createKeyRateLimiter(modelInfo.id, modelInfo.rateLimit, zenApiKey, input.request)
     await rateLimiter?.check()
     const authInfo = await authenticate(modelInfo, zenApiKey)
-    if (authInfo && !authInfo.region) {
-      await Actor.provide("system", { workspaceID: authInfo.workspaceID }, () =>
-        Workspace.setDefaultRegion({ country: countryFromRequest(input.request) }),
-      )
+    const allowedRegions = authInfo?.region
+      ? authInfo.region
+      : await (async () => {
+          if (!authInfo) return
+          return Actor.provide("system", { workspaceID: authInfo.workspaceID }, () =>
+            Workspace.setDefaultRegion({ country: countryFromRequest(input.request) }),
+          )
+        })()
+    /*
+    if (true) {
+      if (!allowedRegions?.includes("unavailable"))
+        throw new RegionError(
+          t("zen.api.error.regionNotAllowed", {
+            consoleGoUrl: `https://opencode.ai/workspace/${authInfo.workspaceID}/go`,
+          }),
+        )
     }
+    */
     const stickyId = sessionId ? sessionId : (authInfo?.workspaceID ?? ip)
     const stickyTracker = createStickyTracker(modelInfo.id, modelInfo.stickyProvider, stickyId)
     const stickyProvider = await stickyTracker?.get()
@@ -444,6 +458,15 @@ export async function handler(
       } catch {}
     }
 
+    if (error instanceof RegionError)
+      return new Response(
+        JSON.stringify({
+          type: "error",
+          error: { type: error.constructor.name, message: error.message },
+        }),
+        { status: 403 },
+      )
+
     // Note: both top level "type" and "error.type" fields are used by the @ai-sdk/anthropic client to render the error message.
     if (
       error instanceof AuthError ||
@@ -564,70 +587,69 @@ export async function handler(
         }))
       }
 
-      if (retry.retryCount !== MAX_FAILOVER_RETRIES) {
-        let topPriority = Infinity
-        const providers = allProviders
-          .filter((provider) => provider.weight !== 0)
-          .filter((provider) => !retry.excludeProviders.includes(provider.id))
-          .filter((provider) => {
-            if (provider.budgetPriority === undefined) return true
-            if (!providerBudget) return true
-            return providerBudget.qualify(provider.id, provider.budgetPriority)
-          })
-          .filter((provider) => {
-            if (!provider.tpmLimit) return true
-            const usage = modelTpmLimits?.[`${provider.id}/${provider.model}`] ?? 0
-            return usage < provider.tpmLimit * 1_000_000
-          })
-          .filter((provider) => {
-            if (!provider.tpsGoal) return true
-            const tps = modelTpsLimits?.[`${provider.id}/${provider.model}/${provider.tpsGoal}`] ?? {
-              qualify: 0,
-              unqualify: 0,
-            }
-            const isLowTps = tps.qualify + tps.unqualify > 10 && tps.qualify < tps.unqualify
-            return !isLowTps
-          })
-          .map((provider) => {
-            topPriority = Math.min(topPriority, provider.priority)
-            return provider
-          })
-          .filter((p) => p.priority <= topPriority)
-          .flatMap((provider) => Array<typeof provider>(provider.weight).fill(provider))
+      // Use fallback provider if max retries reached
+      const fallbackProvider = allProviders.find((provider) => provider.id === modelInfo.fallbackProvider)
+      if (retry.retryCount === MAX_FAILOVER_RETRIES) return fallbackProvider
 
-        // Use the last 4 characters of session ID to select a provider
-        let h = 0
-        const l = stickyId.length
-        for (let i = l - 4; i < l; i++) {
-          h = (h * 31 + stickyId.charCodeAt(i)) | 0 // 32-bit int
-        }
-        const index = (h >>> 0) % providers.length // make unsigned + range 0..length-1
-        const provider = providers[index || 0]
-
-        // sticky provider does not exist => use selected provider
-        if (!stickyProviderId) return provider
-        const stickProvider = allProviders.find((provider) => provider.id === stickyProviderId)
-        if (!stickProvider) return provider
-
-        const preferBudgetProvider =
-          provider.budgetPriority !== undefined && providerBudget?.prefer(provider.id, provider.budgetPriority)
-
-        const preferTpsProvider = (() => {
-          if (!provider.tpsGoal) return false
+      let topPriority = Infinity
+      const providers = allProviders
+        .filter((provider) => provider.weight !== 0)
+        .filter((provider) => !retry.excludeProviders.includes(provider.id))
+        .filter((provider) => {
+          if (provider.budgetPriority === undefined) return true
+          if (!providerBudget) return true
+          return providerBudget.qualify(provider.id, provider.budgetPriority)
+        })
+        .filter((provider) => {
+          if (!provider.tpmLimit) return true
+          const usage = modelTpmLimits?.[`${provider.id}/${provider.model}`] ?? 0
+          return usage < provider.tpmLimit * 1_000_000
+        })
+        .filter((provider) => {
+          if (!provider.tpsGoal) return true
           const tps = modelTpsLimits?.[`${provider.id}/${provider.model}/${provider.tpsGoal}`] ?? {
             qualify: 0,
             unqualify: 0,
           }
-          return tps.qualify > tps.unqualify * 3
-        })()
+          const isLowTps = tps.qualify + tps.unqualify > 10 && tps.qualify < tps.unqualify
+          return !isLowTps
+        })
+        .map((provider) => {
+          topPriority = Math.min(topPriority, provider.priority)
+          return provider
+        })
+        .filter((p) => p.priority <= topPriority)
+        .flatMap((provider) => Array<typeof provider>(provider.weight).fill(provider))
 
-        if (!preferBudgetProvider && !preferTpsProvider) return stickProvider
-
-        return provider
+      // Use the last 4 characters of session ID to select a provider
+      let h = 0
+      const l = stickyId.length
+      for (let i = l - 4; i < l; i++) {
+        h = (h * 31 + stickyId.charCodeAt(i)) | 0 // 32-bit int
       }
+      const index = (h >>> 0) % providers.length // make unsigned + range 0..length-1
+      const provider = providers[index || 0] ?? fallbackProvider
 
-      // fallback provider
-      return allProviders.find((provider) => provider.id === modelInfo.fallbackProvider)
+      // sticky provider does not exist => use selected provider
+      if (!stickyProviderId) return provider
+      const stickProvider = allProviders.find((provider) => provider.id === stickyProviderId)
+      if (!stickProvider) return provider
+
+      const preferBudgetProvider =
+        provider.budgetPriority !== undefined && providerBudget?.prefer(provider.id, provider.budgetPriority)
+
+      const preferTpsProvider = (() => {
+        if (!provider.tpsGoal) return false
+        const tps = modelTpsLimits?.[`${provider.id}/${provider.model}/${provider.tpsGoal}`] ?? {
+          qualify: 0,
+          unqualify: 0,
+        }
+        return tps.qualify > tps.unqualify * 3
+      })()
+
+      if (!preferBudgetProvider && !preferTpsProvider) return stickProvider
+
+      return provider
     })()
 
     if (!modelProvider) throw new ModelError(t("zen.api.error.noProviderAvailable"))

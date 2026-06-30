@@ -240,7 +240,6 @@ export const dict = {
   "zen.privacy.exceptionsLink": "以下例外情况除外",
 
   "go.title": "OpenCode Go | 人人可用的低成本编程模型",
-  "go.banner.text": "MiniMax M3 限时享受 3 倍使用额度",
   "go.meta.description":
     "Go 首月 $5，之后 $10/月，提供对 GLM-5.2、GLM-5.1、Kimi K2.7 Code、Kimi K2.6、MiMo-V2.5-Pro、MiMo-V2.5、Qwen3.7 Max、Qwen3.7 Plus、Qwen3.6 Plus、MiniMax M2.7、MiniMax M3、DeepSeek V4 Pro 和 DeepSeek V4 Flash 的 5 小时充裕请求额度。",
   "go.hero.title": "人人可用的低成本编程模型",
@@ -356,6 +355,7 @@ export const dict = {
     "您的工作区已达到每月支出限额 ${{amount}}。请在此处管理您的限额：{{billingUrl}}",
   "zen.api.error.userMonthlyLimitReached": "您已达到每月支出限额 ${{amount}}。请在此处管理您的限额：{{membersUrl}}",
   "zen.api.error.modelDisabled": "模型已禁用",
+  "zen.api.error.regionNotAllowed": "该模型部署在中国。如果你想使用该模型，请在设置中启用它：{{consoleGoUrl}}",
   "zen.api.error.trialEnded": "{{model}} 的限免活动已结束。您可以订阅 OpenCode Go 继续使用该模型 - {{link}}",
 
   "black.meta.title": "OpenCode Black | 访问全球顶尖编程模型",
