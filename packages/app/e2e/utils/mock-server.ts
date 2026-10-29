@@ -1274,6 +1274,15 @@ function mockHandlers(
             cursor: { next: offset + limit < ordered.length ? String(offset + limit) : undefined },
           })
         },
+        // The goal plugin's pill reads each routed session's goal; no scenario sets one.
+        rpcCall: (ctx) =>
+          ctx.params.rpcID === "opencode.goal" && ctx.params.method === "get"
+            ? Effect.succeed({ output: null })
+            : Effect.fail(
+                new MockUnsupported({
+                  message: `The mock server has no ${ctx.params.rpcID}.${ctx.params.method} RPC`,
+                }),
+              ),
         sessionActive: () => {
           const status = resolve(config.sessionStatus ?? {})
 
@@ -1306,6 +1315,7 @@ function mockHandlers(
           }),
         sessionRemove: () => noContent,
         sessionShell: () => noContent,
+        sessionView: () => noContent,
         sessionForm: (ctx) =>
           Effect.succeed({
             data: resolve(config.forms ?? []).filter(
