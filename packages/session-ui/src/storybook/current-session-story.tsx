@@ -1,4 +1,3 @@
-import type { SessionStatus } from "@opencode/client/promise"
 import type { SessionDocument } from "../document"
 import { File } from "../components/file"
 import { DataProvider, type ReadMediaUrlFn, type TurnDiffSource } from "../context/data"
@@ -12,18 +11,14 @@ import { CURRENT_SESSION_ID, STORY_TIME } from "./current-session-fixtures"
 
 export function CurrentSessionProviders(props: {
   document: SessionDocument
-  backgroundCompaction?: boolean
   readMedia?: ReadMediaUrlFn
   turnDiff?: TurnDiffSource
-  /** Other sessions' statuses, such as the subagents a replay has started. */
-  sessionStatus?: Record<string, SessionStatus>
   children: JSX.Element
 }) {
   return (
     <DataProvider
       directory="C:/workspaces/opencode"
       sessionID={props.document.sessionID}
-      backgroundCompaction={props.backgroundCompaction}
       readMedia={props.readMedia}
       data={{
         agent: [
@@ -78,7 +73,6 @@ export function CurrentSessionProviders(props: {
           [CURRENT_SESSION_ID]: props.document.status,
           session_child_review: { type: "idle" },
           session_child_tests: { type: "busy" },
-          ...props.sessionStatus,
         },
         session_diff: { [CURRENT_SESSION_ID]: props.document.diffs },
       }}
@@ -99,7 +93,6 @@ export function CurrentSessionTimelineStory(props: {
   editToolDefaultOpen?: boolean
   turnDiffs?: boolean
   turnDiff?: TurnDiffSource
-  backgroundCompaction?: boolean
   readMedia?: ReadMediaUrlFn
 }) {
   // Inline story documents rebuild their messages on every prop read, and the timeline projection keys text by identity.
@@ -139,12 +132,7 @@ export function CurrentSessionTimelineStory(props: {
         <Show when={revision()} keyed>
           {(revision) => (
             <div data-story-revision={revision}>
-              <CurrentSessionProviders
-                document={document()}
-                backgroundCompaction={props.backgroundCompaction}
-                readMedia={props.readMedia}
-                turnDiff={props.turnDiff}
-              >
+              <CurrentSessionProviders document={document()} readMedia={props.readMedia} turnDiff={props.turnDiff}>
                 <SessionTimeline
                   document={document()}
                   presentation={props.presentation}
